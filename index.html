@@ -265,8 +265,8 @@ footer{margin-top:34px;font:11px var(--font-mono);color:var(--faint);text-align:
   </ol>
   <strong style="display:block;margin-top:12px">Marcar rápido en fortnite.gg</strong>
   <p style="margin-top:6px">El botón <strong>✎</strong> junto a cada sprite copia su nombre y abre fortnite.gg: pega el nombre en el buscador de allí y marca la casilla. Y para no buscar nada: arrastra este marcador a tu barra de favoritos →
-  <a class="bml" href="javascript:void(async function(){var t='';try{t=await navigator.clipboard.readText()}catch(e){}if(!t){t=prompt('Sprite (Nombre::owned o Nombre::mastered)')||''}var p=t.split('::');var n=p[0].trim();var m=(p[1]||'owned').trim();var s=document.getElementById('sprites-search');if(!s){alert('Abre fortnite.gg/sprites con tu cuenta y pulsa alli el marcador');return}s.value=n;s.dispatchEvent(new Event('input',{bubbles:true}));setTimeout(function(){var all=document.querySelectorAll('.card');var c=[];for(var i=0;i&lt;all.length;i++){if(all[i].offsetParent){c.push(all[i])}}if(c.length!==1){alert(c.length===0?'No encuentro '+n:'Hay '+c.length+' resultados, marca a mano');return}var q;if(m==='mastered'){q=c[0].querySelector('.sprite-mastered-checkbox .checkbox-v2')}else{q=c[0].querySelector('.checkbox-v2')}if(!q){alert('No veo la casilla: inicia sesion en fortnite.gg');return}if(q.checked){alert(n+' ya estaba marcado');return}if(confirm('Marcar '+n+' como '+(m==='mastered'?'MASTERIZADO':'obtenido')+'?')){q.checked=true;q.dispatchEvent(new Event('change',{bubbles:true}))}},400)}())">✨ Automarcar sprite</a>.
-  Flujo: pulsa <strong>✎</strong> aquí → en la pestaña de fortnite.gg pulsa <strong>✨</strong> → él busca el sprite copiado, lo muestra él solo y te pide confirmación antes de marcarlo como obtenido o masterizado (según toque). Cada uno marca en su propia cuenta.</p>
+  <a class="bml" href="javascript:void(function(){function go(t){var p=t.split('::');var n=p[0].trim();var m=(p[1]||'owned').trim();var s=document.getElementById('sprites-search');if(!s){alert('Abre fortnite.gg/sprites con tu cuenta y pulsa alli el marcador');return}s.value=n;s.dispatchEvent(new Event('input',{bubbles:true}));setTimeout(function(){var all=document.querySelectorAll('.card');var c=[];for(var i=0;i&lt;all.length;i++){if(all[i].offsetParent){c.push(all[i])}}if(c.length!==1){alert(c.length===0?'No encuentro '+n:'Hay '+c.length+' resultados, marca a mano');return}var q;if(m==='mastered'){q=c[0].querySelector('.sprite-mastered-checkbox .checkbox-v2')}else{q=c[0].querySelector('.checkbox-v2')}if(!q){alert('No veo la casilla: inicia sesion en fortnite.gg');return}if(q.checked){alert(n+' ya estaba marcado');return}if(confirm('Marcar '+n+' como '+(m==='mastered'?'MASTERIZADO':'obtenido')+'?')){q.checked=true;q.dispatchEvent(new Event('change',{bubbles:true}))}},400)}var h=location.hash.match(/fns=([^&amp;]*)/);if(h&amp;&amp;h[1]){go(decodeURIComponent(h[1]))}else if(navigator.clipboard&amp;&amp;navigator.clipboard.readText){navigator.clipboard.readText().then(function(x){go(x||prompt('Sprite (Nombre::owned o ::mastered)')||'')}).catch(function(){go(prompt('Sprite (Nombre::owned o ::mastered)')||'')})}else{go(prompt('Sprite (Nombre::owned o ::mastered)')||'')}}())">✨ Automarcar sprite</a>.
+  Flujo: pulsa <strong>✎</strong> aquí → se abre fortnite.gg → pulsa <strong>✨</strong> en tu barra de favoritos → él ya sabe qué sprite es y si toca obtenido o masterizado (va en la dirección de la pestaña), lo busca, lo muestra él solo y te pide confirmación antes de marcarlo. Sin marcador: pega el nombre (ya copiado) en el buscador de fortnite.gg y marca la casilla a mano. Cada uno marca en su propia cuenta.</p>
   <strong style="display:block;margin-top:12px">Masterizar</strong>
   <ol>
     <li>Sube el sprite a <strong>nivel 5</strong> dentro de la partida (hoguera junto al agua = MP x2; con un compañero reviviéndote se puede llegar a nivel 5 en una sola partida).</li>
@@ -676,10 +676,13 @@ document.addEventListener("click", e => {
   if (mg){
     // la copia tiene que ser SÍNCRONA: window.open roba el foco y cancelaría
     // la escritura asíncrona de navigator.clipboard
+    // al portapapeles va SOLO el nombre limpio (para pegarlo en el buscador);
+    // el modo viaja en el #hash de la URL, donde lo lee el marcador ✨
+    const cleanName = mg.dataset.copy.split("::")[0];
     let ok = false;
     try {
       const ta = document.createElement("textarea");
-      ta.value = mg.dataset.copy;
+      ta.value = cleanName;
       ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
       document.body.appendChild(ta);
       ta.focus(); ta.select();
@@ -687,12 +690,12 @@ document.addEventListener("click", e => {
       ta.remove();
     } catch (err) {}
     if (!ok){
-      try { navigator.clipboard.writeText(mg.dataset.copy).then(() => {}, () => {}); ok = true; } catch (err) {}
+      try { navigator.clipboard.writeText(cleanName).then(() => {}, () => {}); ok = true; } catch (err) {}
     }
     const old = mg.textContent;
     mg.textContent = ok ? "✓ copiado" : "✗ no se pudo copiar";
     setTimeout(() => { mg.textContent = old; }, 1500);
-    window.open("https://fortnite.gg/sprites", "_blank", "noopener");
+    window.open("https://fortnite.gg/sprites#fns=" + encodeURIComponent(mg.dataset.copy), "_blank", "noopener");
     return;
   }
   const ob = e.target.closest("[data-out]");
