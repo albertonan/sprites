@@ -603,10 +603,9 @@ function playerCardHTML(p){
 }
 
 // comparador de masterizados: quién ha masterizado qué, sprite a sprite.
-// Compara a todos los que tengan datos (también a los que están fuera del plan:
-// esto es la colección, no el plan de tradeos)
+// Los jugadores fuera del plan tampoco entran en la comparación
 function renderCompare(){
-  const ps = PLAYERS.filter(p => data[p.key]?.sprites?.length);
+  const ps = PLAYERS.filter(p => data[p.key]?.sprites?.length && !out.includes(p.key));
   if (ps.length < 2){
     $("#cmpBar").innerHTML = "";
     $("#cmpCount").textContent = "";
