@@ -212,7 +212,7 @@ header{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-bottom:26p
 .cmp-score .sc b{font:600 15px var(--font-display);color:var(--ink)}
 .cmp-score .sc.lead{border-color:var(--v-gold)}
 .cmp-score .sc.lead b{color:var(--v-gold)}
-.cmp-tabs{margin-left:auto;display:flex;gap:6px}
+.cmp-tabs{margin-left:auto;display:flex;flex-wrap:wrap;gap:6px}
 .cmp-tabs button{
   background:transparent;border:1px solid var(--line);color:var(--dim);
   border-radius:8px;padding:5px 12px;font:12px var(--font-mono);
@@ -616,9 +616,16 @@ function renderCompare(){
   ps.forEach(p => maps[p.key] = new Map(data[p.key].sprites.map(s => [s.id, s])));
   const catalog = [...data[ps[0].key].sprites].sort((a, b) => pctVal(a.pct) - pctVal(b.pct));
   const rows = catalog.map(sp => ({ sp, sts: ps.map(p => maps[p.key].get(sp.id)?.status ?? "Not owned") }));
-  // "diferencias": alguien ya lo masterizó y a otro aún le falta (por tener o por masterizar)
-  const diff = rows.filter(r => r.sts.includes("Mastered") && r.sts.some(s => s !== "Mastered"));
-  const shown = cmpMode === "all" ? rows : diff;
+  // filtros: "diff" alguien lo masterizó y a otro le falta · "mast" masterizado por
+  // todos · "pend" masterizado por nadie · "all" el catálogo entero
+  const FILTERS = {
+    diff: { label: "Diferencias",        tip: "alguien ya lo masterizó y a otro le falta",  test: r => r.sts.includes("Mastered") && r.sts.some(s => s !== "Mastered"), empty: "Nadie va por delante de nadie 🤝" },
+    all:  { label: "Todos",              tip: "el catálogo completo",                        test: () => true,                                                          empty: "Sin sprites en el catálogo" },
+    mast: { label: "Solo masterizados",  tip: "los que todos tenéis ya masterizados",        test: r => r.sts.every(s => s === "Mastered"),                             empty: "Todavía no hay ninguno masterizado por todos" },
+    pend: { label: "Solo sin masterizar",tip: "los que nadie ha masterizado aún",            test: r => !r.sts.includes("Mastered"),                                    empty: "No queda ninguno sin masterizar por alguien 🎉" }
+  };
+  if (!FILTERS[cmpMode]) cmpMode = "diff";
+  const shown = rows.filter(FILTERS[cmpMode].test);
 
   const counts = ps.map(p => data[p.key].sprites.filter(s => s.status === "Mastered").length);
   const best = Math.max(...counts);
@@ -626,10 +633,9 @@ function renderCompare(){
     <div class="cmp-score">${ps.map((p, i) =>
       `<span class="sc${counts[i] === best && best > 0 ? " lead" : ""}">${counts[i] === best && best > 0 ? "👑 " : ""}${esc(p.name)} <b>${counts[i]}</b>/${data[p.key].sprites.length} ★</span>`
     ).join("")}</div>
-    <div class="cmp-tabs">
-      <button type="button" data-cmp="diff" class="${cmpMode === "diff" ? "on" : ""}" title="sprites que alguien ya masterizó y a otro le faltan">Solo diferencias</button>
-      <button type="button" data-cmp="all" class="${cmpMode === "all" ? "on" : ""}">Todos</button>
-    </div>`;
+    <div class="cmp-tabs">${Object.entries(FILTERS).map(([k, f]) =>
+      `<button type="button" data-cmp="${k}" class="${cmpMode === k ? "on" : ""}" title="${esc(f.tip)}">${esc(f.label)}</button>`
+    ).join("")}</div>`;
   $("#cmpCount").textContent = `· ${shown.length} de ${rows.length} sprites`;
 
   const stHTML = s =>
@@ -648,7 +654,7 @@ function renderCompare(){
           </div>`;
         }).join("")}
       </div>`
-    : `<div class="cmp-empty">Nadie va por delante de nadie: ${counts.every(c => c === 0) ? "aún no hay masterizados" : "vais iguales"} 🤝</div>`;
+    : `<div class="cmp-empty">${esc(FILTERS[cmpMode].empty)}</div>`;
 }
 
 function render(){
