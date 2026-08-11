@@ -202,6 +202,47 @@ header{display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-bottom:26p
 .vdot{width:8px;height:8px;border-radius:50%;background:var(--vc,var(--v-base));flex:none;box-shadow:0 0 5px var(--vc,var(--v-base))}
 .col li .pct{margin-left:auto;font:10px var(--font-mono);color:var(--faint);white-space:nowrap}
 
+/* ---------- comparador de masterizados ---------- */
+.cmp-bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+.cmp-score{display:flex;flex-wrap:wrap;gap:8px}
+.cmp-score .sc{
+  display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);
+  border-radius:20px;padding:4px 13px;font:12px var(--font-mono);color:var(--dim);
+}
+.cmp-score .sc b{font:600 15px var(--font-display);color:var(--ink)}
+.cmp-score .sc.lead{border-color:var(--v-gold)}
+.cmp-score .sc.lead b{color:var(--v-gold)}
+.cmp-tabs{margin-left:auto;display:flex;gap:6px}
+.cmp-tabs button{
+  background:transparent;border:1px solid var(--line);color:var(--dim);
+  border-radius:8px;padding:5px 12px;font:12px var(--font-mono);
+}
+.cmp-tabs button:hover{border-color:var(--v-gold);color:var(--v-gold)}
+.cmp-tabs button.on{border-color:var(--v-gold);color:var(--v-gold);font-weight:600}
+.cmp-table{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.cmp-scroll{max-height:440px;overflow-y:auto}
+.cmp-row{
+  display:grid;grid-template-columns:minmax(150px,1.6fr) repeat(var(--cn,3),1fr);
+  gap:8px;align-items:center;padding:7px 14px;border-top:1px solid var(--line);font-size:13px;
+}
+.cmp-row.chead{
+  border-top:none;position:sticky;top:0;background:var(--panel);z-index:1;
+  font:600 11px var(--font-mono);color:var(--faint);text-transform:uppercase;letter-spacing:.1em;
+}
+.cmp-row .spr{display:flex;align-items:center;gap:8px;min-width:0}
+.cmp-row .spr .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700}
+.cmp-row .spr .pct{font:10px var(--font-mono);color:var(--faint);white-space:nowrap}
+.cmp-row .st{font:12px var(--font-mono);white-space:nowrap}
+.cmp-row .st.mast{color:var(--v-gold)}
+.cmp-row .st.own{color:var(--dim)}
+.cmp-row .st.no{color:var(--faint)}
+.cmp-empty{color:var(--dim);text-align:center;padding:22px 10px;font-size:14px}
+@media (max-width:640px){
+  .cmp-row{grid-template-columns:minmax(100px,1.4fr) repeat(var(--cn,3),auto)}
+  .cmp-row .st .lbl{display:none}
+  .cmp-tabs{margin-left:0}
+}
+
 /* ---------- rules ---------- */
 .rules{background:var(--panel-2);border:1px dashed var(--line);border-radius:14px;padding:18px 20px;font-size:14px;color:var(--dim)}
 .rules strong{color:var(--ink)}
@@ -252,6 +293,10 @@ footer{margin-top:34px;font:11px var(--font-mono);color:var(--faint);text-align:
 
 <div class="section-title">Estado de las colecciones</div>
 <div class="cols" id="cols"></div>
+
+<div class="section-title">Comparador de masterizados <span id="cmpCount" style="letter-spacing:0;text-transform:none"></span></div>
+<div class="cmp-bar" id="cmpBar"></div>
+<div class="cmp-table" id="cmp"></div>
 
 <div class="section-title">Cómo se hace</div>
 <div class="rules">
@@ -315,6 +360,8 @@ let spent = store.get("fns3.spent", []);
 // jugadores fuera del plan (se puede jugar a 2): sus datos se conservan,
 // pero no aparecen ni como donantes ni como receptores hasta volver a incluirlos
 let out = store.get("fns3.out", []);
+// vista del comparador de masterizados: "diff" (solo donde alguien va por delante) o "all"
+let cmpMode = store.get("fns3.cmp", "diff");
 let nextAt = 0;
 
 /* ================= helpers ================= */
@@ -555,6 +602,56 @@ function playerCardHTML(p){
     </form></div>`;
 }
 
+// comparador de masterizados: quién ha masterizado qué, sprite a sprite.
+// Compara a todos los que tengan datos (también a los que están fuera del plan:
+// esto es la colección, no el plan de tradeos)
+function renderCompare(){
+  const ps = PLAYERS.filter(p => data[p.key]?.sprites?.length);
+  if (ps.length < 2){
+    $("#cmpBar").innerHTML = "";
+    $("#cmpCount").textContent = "";
+    $("#cmp").innerHTML = `<div class="cmp-empty">Vincula al menos dos colecciones para comparar.</div>`;
+    return;
+  }
+  const maps = {};
+  ps.forEach(p => maps[p.key] = new Map(data[p.key].sprites.map(s => [s.id, s])));
+  const catalog = [...data[ps[0].key].sprites].sort((a, b) => pctVal(a.pct) - pctVal(b.pct));
+  const rows = catalog.map(sp => ({ sp, sts: ps.map(p => maps[p.key].get(sp.id)?.status ?? "Not owned") }));
+  // "diferencias": alguien ya lo masterizó y a otro aún le falta (por tener o por masterizar)
+  const diff = rows.filter(r => r.sts.includes("Mastered") && r.sts.some(s => s !== "Mastered"));
+  const shown = cmpMode === "all" ? rows : diff;
+
+  const counts = ps.map(p => data[p.key].sprites.filter(s => s.status === "Mastered").length);
+  const best = Math.max(...counts);
+  $("#cmpBar").innerHTML = `
+    <div class="cmp-score">${ps.map((p, i) =>
+      `<span class="sc${counts[i] === best && best > 0 ? " lead" : ""}">${counts[i] === best && best > 0 ? "👑 " : ""}${esc(p.name)} <b>${counts[i]}</b>/${data[p.key].sprites.length} ★</span>`
+    ).join("")}</div>
+    <div class="cmp-tabs">
+      <button type="button" data-cmp="diff" class="${cmpMode === "diff" ? "on" : ""}" title="sprites que alguien ya masterizó y a otro le faltan">Solo diferencias</button>
+      <button type="button" data-cmp="all" class="${cmpMode === "all" ? "on" : ""}">Todos</button>
+    </div>`;
+  $("#cmpCount").textContent = `· ${shown.length} de ${rows.length} sprites`;
+
+  const stHTML = s =>
+    s === "Mastered"  ? `<span class="st mast">★<span class="lbl"> masterizado</span></span>`
+    : s === "Owned"   ? `<span class="st own">●<span class="lbl"> sin masterizar</span></span>`
+                      : `<span class="st no">—<span class="lbl"> no lo tiene</span></span>`;
+  $("#cmp").style.setProperty("--cn", ps.length);
+  $("#cmp").innerHTML = shown.length
+    ? `<div class="cmp-scroll">
+        <div class="cmp-row chead"><span>Sprite</span>${ps.map(p => `<span>${esc(p.name)}</span>`).join("")}</div>
+        ${shown.map(r => {
+          const v = variantOf(r.sp.name);
+          return `<div class="cmp-row" style="--vc:${vColor(v)}">
+            <span class="spr"><span class="vdot"></span><span class="n">${esc(r.sp.name)}</span><span class="pct">${esc(r.sp.pct)}</span></span>
+            ${r.sts.map(stHTML).join("")}
+          </div>`;
+        }).join("")}
+      </div>`
+    : `<div class="cmp-empty">Nadie va por delante de nadie: ${counts.every(c => c === 0) ? "aún no hay masterizados" : "vais iguales"} 🤝</div>`;
+}
+
 function render(){
   $("#players").innerHTML = PLAYERS.map(playerCardHTML).join("");
 
@@ -609,6 +706,8 @@ function render(){
           return `<li style="--vc:${vColor(v)}"><span class="vdot"></span>${esc(f.sp.name)}<span class="pct">${esc(f.sp.pct)} · ${esc(who)}</span></li>`;
         }).join("") || `<li style="color:var(--faint)">nada 🎉</li>`
       }</ul></div>`;
+
+  renderCompare();
 
   const f = [];
   PLAYERS.forEach(p => { if (data[p.key]?.fetchedAt) f.push(`${p.name}: ${new Date(data[p.key].fetchedAt).toLocaleTimeString()}`); });
@@ -696,6 +795,13 @@ document.addEventListener("click", e => {
     mg.textContent = ok ? "✓ copiado" : "✗ no se pudo copiar";
     setTimeout(() => { mg.textContent = old; }, 1500);
     window.open("https://fortnite.gg/sprites#fns=" + encodeURIComponent(mg.dataset.copy), "_blank", "noopener");
+    return;
+  }
+  const cb = e.target.closest("[data-cmp]");
+  if (cb){
+    cmpMode = cb.dataset.cmp;
+    store.set("fns3.cmp", cmpMode);
+    renderCompare();
     return;
   }
   const ob = e.target.closest("[data-out]");
